@@ -22,7 +22,7 @@ REDMINE_PASSWORD='redminepwd'
 
 set +x
 
-# Set non-interactive instaler mode, update repos.
+# Set non-interactive installer mode, update repos.
 export DEBIAN_FRONTEND=noninteractive
 sudo apt-get update
 
@@ -91,7 +91,7 @@ if [[ -n ${USE_NGINX} ]]; then
     --socket /tmp/thin.redmine.sock \
     --pid tmp/pids/thin.pid
 
-  # Configure nginx. For now default config is overriden.
+  # Configure nginx. For now default config is overridden.
   sudo dd of=/etc/nginx/sites-available/default << EOF
 upstream redmine_upstream {
         server unix:/tmp/thin.redmine.0.sock;
