@@ -23,6 +23,7 @@ REDMINE_PASSWORD='redminepwd'
 set +x
 
 PACKAGES=redmine
+TMP_SELECTIONS=/tmp/selections
 
 # Set non-interactive installer mode, update repos.
 export DEBIAN_FRONTEND=noninteractive
@@ -32,42 +33,65 @@ sudo apt-get update
 # Setup selections, choose packages.
 #############################################
 
+# Global redmine selections.
+cat > ${TMP_SELECTIONS} <<EOF
+redmine redmine/instances/default/app-password password ${REDMINE_PASSWORD}
+redmine redmine/instances/default/app-password-confirm password ${REDMINE_PASSWORD}
+redmine redmine/instances/default/dbconfig-install boolean true
+EOF
+
+function mysql-selections {
+  cat >> ${TMP_SELECTIONS} <<EOF
+redmine redmine/instances/default/database-type select mysql
+redmine redmine/instances/default/mysql/method select unix socket
+redmine redmine/instances/default/mysql/app-pass password ${DB_PASSWORD}
+redmine redmine/instances/default/mysql/admin-pass password ${DB_PASSWORD}
+mysql-server mysql-server/root_password password ${DB_PASSWORD}
+mysql-server mysql-server/root_password_again password ${DB_PASSWORD}
+EOF
+}
+
+function pgsql-selections {
+  cat >> ${TMP_SELECTIONS} <<EOF
+redmine redmine/instances/default/database-type select pgsql
+redmine redmine/instances/default/pgsql/method select unix socket
+redmine redmine/instances/default/pgsql/authmethod-admin select ident
+redmine redmine/instances/default/pgsql/authmethod-user select ident
+redmine redmine/instances/default/pgsql/app-pass password
+redmine redmine/instances/default/pgsql/admin-pass password
+dbconfig-common dbconfig-common/pgsql/authmethod-admin select ident
+dbconfig-common dbconfig-common/pgsql/authmethod-user select ident
+EOF
+}
+
+function sqlite-selections {
+  cat >> ${TMP_SELECTIONS} <<EOF
+redmine redmine/instances/default/database-type select sqlite3
+redmine redmine/instances/default/db/basepath string /var/lib/dbconfig-common/sqlite3/redmine/instances/default
+EOF
+}
+
 # Setup database
 if [[ -n ${USE_MYSQL} ]]; then
   # Setup mysql-server
-  echo "redmine redmine/instances/default/database-type select mysql" | sudo debconf-set-selections
-  echo "redmine redmine/instances/default/mysql/method select unix socket" | sudo debconf-set-selections
-  echo "redmine redmine/instances/default/mysql/app-pass password ${DB_PASSWORD}" | sudo debconf-set-selections
-  echo "redmine redmine/instances/default/mysql/admin-pass password ${DB_PASSWORD}" | sudo debconf-set-selections
-  echo "mysql-server mysql-server/root_password password ${DB_PASSWORD}" | sudo debconf-set-selections
-  echo "mysql-server mysql-server/root_password_again password ${DB_PASSWORD}" | sudo debconf-set-selections
+  mysql-selections
   PACKAGES="$PACKAGES redmine-mysql"
 elif [[ -n ${USE_PGSQL} ]]; then
   # Setup pgsql-server
-  echo "redmine redmine/instances/default/database-type select pgsql" | sudo debconf-set-selections
-  echo "redmine redmine/instances/default/pgsql/method select unix socket" | sudo debconf-set-selections
-  echo "redmine redmine/instances/default/pgsql/authmethod-admin select ident" | sudo debconf-set-selections
-  echo "redmine redmine/instances/default/pgsql/authmethod-user select ident" | sudo debconf-set-selections
-  echo "redmine redmine/instances/default/pgsql/app-pass password" | sudo debconf-set-selections
-  echo "redmine redmine/instances/default/pgsql/admin-pass password" | sudo debconf-set-selections
-  echo "dbconfig-common dbconfig-common/pgsql/authmethod-admin select ident" | sudo debconf-set-selections
-  echo "dbconfig-common dbconfig-common/pgsql/authmethod-user select ident" | sudo debconf-set-selections
+  pgsql-selections
   PACKAGES="$PACKAGES redmine-pgsql"
 elif [[ -n ${USE_SQLITE3} ]]; then
-  echo 'redmine redmine/instances/default/database-type select sqlite3' | sudo debconf-set-selections
-  echo 'redmine redmine/instances/default/db/basepath string /var/lib/dbconfig-common/sqlite3/redmine/instances/default' | sudo debconf-set-selections  
   # Sqlite is installed and used by default as database if no other is set.
+  sqlite-selections
 fi
-
-# Install redmine.
-echo "redmine redmine/instances/default/app-password password ${REDMINE_PASSWORD}" | sudo debconf-set-selections
-echo "redmine redmine/instances/default/app-password-confirm password ${REDMINE_PASSWORD}" | sudo debconf-set-selections
-echo "redmine redmine/instances/default/dbconfig-install boolean true" | sudo debconf-set-selections
 
 # Extras
 if [[ -n ${USE_IMAGEMAGICK} ]]; then
   PACKAGES="$PACKAGES imagemagick ruby-rmagick"
 fi
+
+cat ${TMP_SELECTIONS} | sudo debconf-set-selections
+rm ${TMP_SELECTIONS}
 
 # Setup web servers
 if [[ -n ${USE_NGINX} ]]; then
