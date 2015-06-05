@@ -22,23 +22,28 @@ REDMINE_PASSWORD='redminepwd'
 
 set +x
 
+PACKAGES=redmine
+
 # Set non-interactive installer mode, update repos.
 export DEBIAN_FRONTEND=noninteractive
 sudo apt-get update
 
-# Install and setup database.
+#############################################
+# Setup selections, choose packages.
+#############################################
+
+# Setup database
 if [[ -n ${USE_MYSQL} ]]; then
-  # Setup and install mysql-server
+  # Setup mysql-server
   echo "redmine redmine/instances/default/database-type select mysql" | sudo debconf-set-selections
   echo "redmine redmine/instances/default/mysql/method select unix socket" | sudo debconf-set-selections
   echo "redmine redmine/instances/default/mysql/app-pass password ${DB_PASSWORD}" | sudo debconf-set-selections
   echo "redmine redmine/instances/default/mysql/admin-pass password ${DB_PASSWORD}" | sudo debconf-set-selections
   echo "mysql-server mysql-server/root_password password ${DB_PASSWORD}" | sudo debconf-set-selections
   echo "mysql-server mysql-server/root_password_again password ${DB_PASSWORD}" | sudo debconf-set-selections
-  sudo apt-get install -q -y mysql-server mysql-client
-  sudo apt-get install -q -y redmine-mysql
+  PACKAGES="$PACKAGES redmine-mysql"
 elif [[ -n ${USE_PGSQL} ]]; then
-  # Setup and install pgsql-server
+  # Setup pgsql-server
   echo "redmine redmine/instances/default/database-type select pgsql" | sudo debconf-set-selections
   echo "redmine redmine/instances/default/pgsql/method select unix socket" | sudo debconf-set-selections
   echo "redmine redmine/instances/default/pgsql/authmethod-admin select ident" | sudo debconf-set-selections
@@ -47,8 +52,7 @@ elif [[ -n ${USE_PGSQL} ]]; then
   echo "redmine redmine/instances/default/pgsql/admin-pass password" | sudo debconf-set-selections
   echo "dbconfig-common dbconfig-common/pgsql/authmethod-admin select ident" | sudo debconf-set-selections
   echo "dbconfig-common dbconfig-common/pgsql/authmethod-user select ident" | sudo debconf-set-selections
-  sudo apt-get install -q -y postgresql postgresql-contrib
-  sudo apt-get install -q -y redmine-pgsql
+  PACKAGES="$PACKAGES redmine-pgsql"
 elif [[ -n ${USE_SQLITE3} ]]; then
   echo 'redmine redmine/instances/default/database-type select sqlite3' | sudo debconf-set-selections
   echo 'redmine redmine/instances/default/db/basepath string /var/lib/dbconfig-common/sqlite3/redmine/instances/default' | sudo debconf-set-selections  
@@ -59,29 +63,46 @@ fi
 echo "redmine redmine/instances/default/app-password password ${REDMINE_PASSWORD}" | sudo debconf-set-selections
 echo "redmine redmine/instances/default/app-password-confirm password ${REDMINE_PASSWORD}" | sudo debconf-set-selections
 echo "redmine redmine/instances/default/dbconfig-install boolean true" | sudo debconf-set-selections
-sudo apt-get install -q -y redmine
-
-# Extra required package for ubuntu 14.04 to make redmine work.
-sudo gem install bundler
 
 # Extras
 if [[ -n ${USE_IMAGEMAGICK} ]]; then
-  sudo apt-get install -q -y imagemagick
-  sudo apt-get install -q -y ruby-rmagick
+  PACKAGES="$PACKAGES imagemagick ruby-rmagick"
 fi
+
+# Setup web servers
+if [[ -n ${USE_NGINX} ]]; then
+  # Setup nginx and thin
+  PACKAGES="$PACKAGES nginx thin"
+elif [[ -n ${USE_APACHE2} ]]; then
+  # Setup apache2
+  PACKAGES="$PACKAGES apache2 libapache2-mod-passenger"
+fi
+
+#############################################
+# Install packages.
+#############################################
+if [[ -n ${USE_MYSQL} ]]; then
+  # Install mysql-server
+  sudo apt-get install -q -y mysql-server --no-install-recommends
+elif [[ -n ${USE_PGSQL} ]]; then
+  # Install pgsql-server
+  sudo apt-get install -q -y postgresql postgresql-contrib --no-install-recommends
+fi
+# Install all remaining packages
+sudo apt-get install -q -y $PACKAGES --no-install-recommends
+
+# Extra required package to make redmine work.
+sudo gem install bundler
 
 # Change permissions for redmine directory.
 sudo chown www-data:www-data /usr/share/redmine
 
 #############################################
-# Install web servers. 
+# Configure web servers.
 #############################################
 # nginx as first option.
 # ----------------------
-if [[ -n ${USE_NGINX} ]]; then 
-  # nginx and thin are required.
-  sudo apt-get install -q -y nginx thin
-
+if [[ -n ${USE_NGINX} ]]; then
   # Configure thin.
   sudo thin config \
     --config /etc/thin1.9.1/redmine.yml \
@@ -127,9 +148,6 @@ EOF
 # Else, install apache2.
 # ----------------------
 elif [[ -n ${USE_APACHE2} ]]; then
-  # Install apache2
-  sudo apt-get install -q -y apache2 libapache2-mod-passenger
-
   # Link redmine into apache2.
   sudo ln -s /usr/share/redmine/public /var/www/redmine
 
