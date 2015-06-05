@@ -128,8 +128,14 @@ sudo chown www-data:www-data /usr/share/redmine
 # ----------------------
 if [[ -n ${USE_NGINX} ]]; then
   # Configure thin.
+  CODENAME="`lsb_release -cs`"
+  if [ "${CODENAME}" == "trusty" ]; then
+    THIN_VER="1.9.1"
+  elif [ "${CODENAME}" == "jessie" ]; then
+    THIN_VER="2.1"
+  fi
   sudo thin config \
-    --config /etc/thin1.9.1/redmine.yml \
+    --config /etc/thin${THIN_VER}/redmine.yml \
     --chdir /usr/share/redmine \
     --environment production \
     --servers 2 \

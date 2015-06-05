@@ -56,6 +56,11 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     trusty386.vm.network "forwarded_port", guest: 80, host: 8888
   end
 
+  config.vm.define "jessie-amd64", autostart: false do |jessie|
+    jessie.vm.box = "boxcutter/debian80"
+    jessie.vm.network "forwarded_port", guest: 80, host: 8888
+  end
+
   # Enable provisioning with Puppet stand alone.  Puppet manifests
   # are contained in a directory path relative to this Vagrantfile.
   # You will need to create the manifests directory and a manifest in
